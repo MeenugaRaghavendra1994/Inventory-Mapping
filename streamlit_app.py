@@ -66,6 +66,10 @@ def apply_filtered_edits(original, edited):
     return original
 
 
+def format_rupees(value):
+    return f"₹{value:,.0f}"
+
+
 def run_mapping(bom, inventory, masters):
     missing = BOM_REQUIRED - set(bom.columns)
     if missing:
@@ -373,7 +377,9 @@ with dashboard_tab:
         )[["SSPL Value", "K12 Value"]].sum()
         total_sspl = dashboard_data["SSPL Value"].sum()
         total_k12 = dashboard_data["K12 Value"].sum()
+        dashboard_summary["SSPL Value"] = dashboard_summary["SSPL Value"].map(format_rupees)
+        dashboard_summary["K12 Value"] = dashboard_summary["K12 Value"].map(format_rupees)
         metric_columns = st.columns(2)
-        metric_columns[0].metric("Total SSPL Value", f"{total_sspl:,.2f}")
-        metric_columns[1].metric("Total K12 Value", f"{total_k12:,.2f}")
+        metric_columns[0].metric("Total SSPL Value", format_rupees(total_sspl))
+        metric_columns[1].metric("Total K12 Value", format_rupees(total_k12))
         st.dataframe(dashboard_summary, hide_index=True, use_container_width=True)
