@@ -13,6 +13,9 @@ create table if not exists public.master_records (
 alter table public.bom_records enable row level security;
 alter table public.master_records enable row level security;
 
+drop policy if exists "service role can manage bom records" on public.bom_records;
+drop policy if exists "service role can manage master records" on public.master_records;
+
 create policy "service role can manage bom records"
 on public.bom_records for all
 to service_role
