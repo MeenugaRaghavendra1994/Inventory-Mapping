@@ -21,7 +21,6 @@ BOM_REQUIRED = {
 }
 MASTERS_REQUIRED = {
     "Material",
-    "Year",
     "Eduvate/Private",
     "Moving Type",
     "Sub Category",
@@ -56,7 +55,6 @@ def load_inventory(uploaded_file):
     )
     return pd.read_excel(uploaded_file, sheet_name=sheet)
 
-
 def clean_material(series):
     return pd.to_numeric(series, errors="coerce").astype("Int64")
 
@@ -78,6 +76,13 @@ def apply_filtered_edits(original, edited):
 
 def format_rupees(value):
     return f"₹{value:,.0f}"
+
+
+def stretch_width_kwargs():
+    version = tuple(int(part) for part in st.__version__.split(".")[:2])
+    if version >= (1, 50):
+        return {"width": "stretch"}
+    return {"use_container_width": True}
 
 
 def run_mapping(bom, inventory, masters):
@@ -275,6 +280,56 @@ def save_sources_to_supabase(bom, masters):
     save_dataframe_to_supabase(client, "master_records", masters)
 
 
+def save_final_inventory_to_supabase(report_date, final_inventory):
+    client = get_supabase_client()
+    if client is None:
+        raise ValueError(
+            "Supabase is not configured. Add the current service_role key "
+            "to Streamlit secrets."
+        )
+
+    report_date_value = report_date.isoformat()
+    client.table("final_inventory_records").delete().eq(
+        "report_date", report_date_value
+    ).execute()
+    records = [
+        {
+            "report_date": report_date_value,
+            "row_number": row_number,
+            "data": record,
+        }
+        for row_number, record in enumerate(dataframe_records(final_inventory))
+    ]
+    for start in range(0, len(records), 500):
+        client.table("final_inventory_records").insert(
+            records[start:start + 500]
+        ).execute()
+
+
+def load_historical_inventory_from_supabase():
+    client = get_supabase_client()
+    if client is None:
+        return pd.DataFrame()
+
+    response = (
+        client.table("final_inventory_records")
+        .select("report_date, row_number, data")
+        .order("report_date")
+        .order("row_number")
+        .execute()
+    )
+    rows = response.data or []
+    if not rows:
+        return pd.DataFrame()
+
+    historical = pd.DataFrame([
+        {"report_date": row["report_date"], **row["data"]}
+        for row in rows
+    ])
+    historical["report_date"] = pd.to_datetime(historical["report_date"])
+    return historical
+
+
 def load_dataframe_from_supabase(client, table_name):
     response = (
         client.table(table_name)
@@ -288,7 +343,6 @@ def load_dataframe_from_supabase(client, table_name):
             f"Supabase table '{table_name}' is empty. Save the source data first."
         )
     return pd.DataFrame([row["data"] for row in rows])
-
 
 st.set_page_config(page_title="Inventory Mapping", page_icon=":bar_chart", layout="wide")
 st.title("Inventory Mapping")
@@ -322,7 +376,7 @@ with bom_tab:
     edited_bom = st.data_editor(
         st.session_state.bom,
         num_rows="dynamic",
-        width="stretch",
+        **stretch_width_kwargs(),
         hide_index=True,
         key="bom_editor",
     )
@@ -359,7 +413,7 @@ with masters_tab:
     edited_masters = st.data_editor(
         filtered_masters,
         num_rows="dynamic",
-        width="stretch",
+        **stretch_width_kwargs(),
         hide_index=True,
         key="masters_editor",
     )
@@ -394,6 +448,11 @@ with status_col:
     st.write("Changes are kept in the current session until you save them or generate an output file.")
 
 st.divider()
+report_date = st.date_input(
+    "Report date",
+    value=pd.Timestamp.today().date(),
+    help="Saving the same date again replaces that date's previous snapshot.",
+)
 if st.button("Generate Final Inventory", type="primary"):
     try:
         if inventory_file is None:
@@ -423,47 +482,72 @@ if "output" in st.session_state:
         st.dataframe(
             st.session_state.result["Final Inventory"],
             hide_index=True,
-            width="stretch",
+            **stretch_width_kwargs(),
         )
 
+    if st.button("Save Final Inventory to Supabase", type="secondary"):
+        try:
+            save_final_inventory_to_supabase(
+                report_date,
+                st.session_state.result["Final Inventory"],
+            )
+            st.success(
+                f"Final Inventory saved to Supabase for {report_date.isoformat()}."
+            )
+        except Exception as error:
+            st.error(f"Could not save Final Inventory to Supabase: {error}")
+
 with dashboard_tab:
-    st.subheader("Inventory Value Dashboard")
-    if "result" not in st.session_state:
-        st.info("Generate the Final Inventory to view the dashboard.")
+    st.subheader("Month-on-Month Value Dashboard")
+    historical_data = load_historical_inventory_from_supabase()
+    if historical_data.empty:
+        st.info("Save at least one dated Final Inventory to Supabase to view charts.")
     else:
-        dashboard_data = st.session_state.result["Final Inventory"].copy()
-        dashboard_filters = st.columns(2)
-        with dashboard_filters[0]:
+        sspl_tab, k12_tab = st.tabs(["SSPL Value", "K12 Value"])
+        chart_filters = st.columns(2)
+        with chart_filters[0]:
             selected_years = st.multiselect(
                 "Filter by Year",
-                options=filter_options(dashboard_data, "Year"),
-                key="dashboard_year_filter",
+                options=filter_options(historical_data, "Year"),
+                key="historical_year_filter",
             )
-        with dashboard_filters[1]:
+        with chart_filters[1]:
             selected_categories = st.multiselect(
                 "Filter by Eduvate/Private",
-                options=filter_options(dashboard_data, "Eduvate/Private"),
-                key="dashboard_category_filter",
+                options=filter_options(historical_data, "Eduvate/Private"),
+                key="historical_category_filter",
             )
 
+        filtered_history = historical_data
         if selected_years:
-            dashboard_data = dashboard_data[dashboard_data["Year"].isin(selected_years)]
+            filtered_history = filtered_history[
+                filtered_history["Year"].isin(selected_years)
+            ]
         if selected_categories:
-            dashboard_data = dashboard_data[
-                dashboard_data["Eduvate/Private"].isin(selected_categories)
+            filtered_history = filtered_history[
+                filtered_history["Eduvate/Private"].isin(selected_categories)
             ]
 
-        dashboard_summary = dashboard_data.groupby(
-            ["Year", "Eduvate/Private"], dropna=False, as_index=False
-        )[["SSPL Value", "K12 Value"]].sum()
-        total_sspl = dashboard_data["SSPL Value"].sum()
-        total_k12 = dashboard_data["K12 Value"].sum()
-        dashboard_summary["SSPL Value"] = dashboard_summary["SSPL Value"].map(format_rupees)
-        dashboard_summary["K12 Value"] = dashboard_summary["K12 Value"].map(format_rupees)
-        metric_columns = st.columns(2)
-        metric_columns[0].metric("Total SSPL Value", format_rupees(total_sspl))
-        metric_columns[1].metric("Total K12 Value", format_rupees(total_k12))
-        st.dataframe(dashboard_summary, hide_index=True, width="stretch")
+        chart_data = filtered_history.copy()
+        chart_data["Report Month"] = (
+            chart_data["report_date"].dt.to_period("M").dt.to_timestamp()
+        )
+        monthly_values = chart_data.groupby("Report Month")[[
+            "SSPL Value", "K12 Value"
+        ]].sum().sort_index()
+
+        with sspl_tab:
+            st.bar_chart(monthly_values["SSPL Value"], y_label="SSPL Value (₹)")
+            st.dataframe(
+                monthly_values[["SSPL Value"]].style.format(format_rupees),
+                **stretch_width_kwargs(),
+            )
+        with k12_tab:
+            st.bar_chart(monthly_values["K12 Value"], y_label="K12 Value (₹)")
+            st.dataframe(
+                monthly_values[["K12 Value"]].style.format(format_rupees),
+                **stretch_width_kwargs(),
+            )
 
 with bom_failed_tab:
     st.subheader("BOM Failed Cases")
@@ -475,7 +559,7 @@ with bom_failed_tab:
         if bom_failed.empty:
             st.success("No BOM failed cases found.")
         else:
-            st.dataframe(bom_failed, hide_index=True, width="stretch")
+            st.dataframe(bom_failed, hide_index=True, **stretch_width_kwargs())
             st.download_button(
                 "Download BOM Failed Cases.csv",
                 data=bom_failed.to_csv(index=False).encode("utf-8"),
