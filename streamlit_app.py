@@ -238,7 +238,11 @@ if "bom" not in st.session_state or "masters" not in st.session_state:
         st.error(f"Could not load source files: {error}")
         st.stop()
 
-bom_tab, masters_tab = st.tabs(["BOM Report SAP", "Masters"])
+bom_tab, masters_tab, dashboard_tab = st.tabs([
+    "BOM Report SAP",
+    "Masters",
+    "Dashboard",
+])
 with bom_tab:
     st.info("Edit existing rows or use Add rows at the bottom. Delete rows with the checkbox in the row menu.")
     edited_bom = st.data_editor(
@@ -336,3 +340,40 @@ if "output" in st.session_state:
             hide_index=True,
             use_container_width=True,
         )
+
+with dashboard_tab:
+    st.subheader("Inventory Value Dashboard")
+    if "result" not in st.session_state:
+        st.info("Generate the Final Inventory to view the dashboard.")
+    else:
+        dashboard_data = st.session_state.result["Final Inventory"].copy()
+        dashboard_filters = st.columns(2)
+        with dashboard_filters[0]:
+            selected_years = st.multiselect(
+                "Filter by Year",
+                options=filter_options(dashboard_data, "Year"),
+                key="dashboard_year_filter",
+            )
+        with dashboard_filters[1]:
+            selected_categories = st.multiselect(
+                "Filter by Eduvate/Private",
+                options=filter_options(dashboard_data, "Eduvate/Private"),
+                key="dashboard_category_filter",
+            )
+
+        if selected_years:
+            dashboard_data = dashboard_data[dashboard_data["Year"].isin(selected_years)]
+        if selected_categories:
+            dashboard_data = dashboard_data[
+                dashboard_data["Eduvate/Private"].isin(selected_categories)
+            ]
+
+        dashboard_summary = dashboard_data.groupby(
+            ["Year", "Eduvate/Private"], dropna=False, as_index=False
+        )[["SSPL Value", "K12 Value"]].sum()
+        total_sspl = dashboard_data["SSPL Value"].sum()
+        total_k12 = dashboard_data["K12 Value"].sum()
+        metric_columns = st.columns(2)
+        metric_columns[0].metric("Total SSPL Value", f"{total_sspl:,.2f}")
+        metric_columns[1].metric("Total K12 Value", f"{total_k12:,.2f}")
+        st.dataframe(dashboard_summary, hide_index=True, use_container_width=True)
