@@ -242,10 +242,11 @@ if "bom" not in st.session_state or "masters" not in st.session_state:
         st.error(f"Could not load source files: {error}")
         st.stop()
 
-bom_tab, masters_tab, dashboard_tab = st.tabs([
+bom_tab, masters_tab, dashboard_tab, bom_failed_tab = st.tabs([
     "BOM Report SAP",
     "Masters",
     "Dashboard",
+    "BOM Failed Cases",
 ])
 with bom_tab:
     st.info("Edit existing rows or use Add rows at the bottom. Delete rows with the checkbox in the row menu.")
@@ -383,3 +384,21 @@ with dashboard_tab:
         metric_columns[0].metric("Total SSPL Value", format_rupees(total_sspl))
         metric_columns[1].metric("Total K12 Value", format_rupees(total_k12))
         st.dataframe(dashboard_summary, hide_index=True, use_container_width=True)
+
+with bom_failed_tab:
+    st.subheader("BOM Failed Cases")
+    if "result" not in st.session_state:
+        st.info("Generate the Final Inventory to view BOM failed cases.")
+    else:
+        bom_failed = st.session_state.result["BOM Failed"]
+        st.metric("Failed BOM Cases", f"{len(bom_failed):,}")
+        if bom_failed.empty:
+            st.success("No BOM failed cases found.")
+        else:
+            st.dataframe(bom_failed, hide_index=True, use_container_width=True)
+            st.download_button(
+                "Download BOM Failed Cases.csv",
+                data=bom_failed.to_csv(index=False).encode("utf-8"),
+                file_name="BOM Failed Cases.csv",
+                mime="text/csv",
+            )
