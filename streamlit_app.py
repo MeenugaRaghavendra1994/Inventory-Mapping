@@ -31,11 +31,20 @@ MASTERS_REQUIRED = {
 
 def load_sources():
     bom = pd.read_excel(BOM_FILE, sheet_name="Sheet1")
-    inventory = pd.read_excel(INVENTORY_FILE, sheet_name="SAPUI5 Export")
     masters_book = pd.ExcelFile(MASTERS_FILE)
     sheet = "Masters" if "Masters" in masters_book.sheet_names else masters_book.sheet_names[0]
     masters = pd.read_excel(MASTERS_FILE, sheet_name=sheet)
-    return bom, inventory, masters
+    return bom, masters
+
+
+def load_inventory(uploaded_file):
+    inventory_book = pd.ExcelFile(uploaded_file)
+    sheet = (
+        "SAPUI5 Export"
+        if "SAPUI5 Export" in inventory_book.sheet_names
+        else inventory_book.sheet_names[0]
+    )
+    return pd.read_excel(uploaded_file, sheet_name=sheet)
 
 
 def clean_material(series):
@@ -197,9 +206,17 @@ st.set_page_config(page_title="Inventory Mapping", page_icon=":bar_chart", layou
 st.title("Inventory Mapping")
 st.caption("Edit source mappings, save them to Excel, and generate the final inventory.")
 
+inventory_file = st.file_uploader(
+    "Upload the current Inventory Excel file",
+    type=["xlsx", "xlsm"],
+    help="The SAPUI5 Export sheet is used when available; otherwise the first sheet is used.",
+)
+if inventory_file is not None:
+    st.caption(f"Selected inventory file: {inventory_file.name}")
+
 if "bom" not in st.session_state or "masters" not in st.session_state:
     try:
-        loaded_bom, _, loaded_masters = load_sources()
+        loaded_bom, loaded_masters = load_sources()
         st.session_state.bom = loaded_bom
         st.session_state.masters = loaded_masters
     except Exception as error:
@@ -246,8 +263,11 @@ with status_col:
 st.divider()
 if st.button("Generate Final Inventory", type="primary"):
     try:
+        if inventory_file is None:
+            st.warning("Upload an Inventory Excel file before generating the report.")
+            st.stop()
         with st.spinner("Preparing final inventory..."):
-            _, inventory, _ = load_sources()
+            inventory = load_inventory(inventory_file)
             result = run_mapping(st.session_state.bom, inventory, st.session_state.masters)
             output = workbook_bytes(result)
         st.session_state.result = result
