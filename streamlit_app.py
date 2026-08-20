@@ -51,6 +51,21 @@ def clean_material(series):
     return pd.to_numeric(series, errors="coerce").astype("Int64")
 
 
+def filter_options(frame, column):
+    return sorted(frame[column].dropna().unique().tolist(), key=str)
+
+
+def apply_filtered_edits(original, edited):
+    existing_index = edited.index.intersection(original.index)
+    if len(existing_index):
+        original.loc[existing_index, edited.columns] = edited.loc[existing_index]
+
+    new_rows = edited.loc[~edited.index.isin(original.index)]
+    if not new_rows.empty:
+        original = pd.concat([original, new_rows], ignore_index=True)
+    return original
+
+
 def run_mapping(bom, inventory, masters):
     missing = BOM_REQUIRED - set(bom.columns)
     if missing:
@@ -238,15 +253,44 @@ with bom_tab:
 
 with masters_tab:
     st.info("Edit existing rows or use Add rows at the bottom. Delete rows with the checkbox in the row menu.")
+    filter_columns = [
+        "Year",
+        "Eduvate/Private",
+        "Moving Type",
+        "Sub Category",
+        "New Grade",
+        "Volume",
+    ]
+    filter_values = {}
+    filter_cols = st.columns(3)
+    for position, column in enumerate(filter_columns):
+        with filter_cols[position % 3]:
+            filter_values[column] = st.multiselect(
+                column,
+                options=filter_options(st.session_state.masters, column),
+                key=f"masters_filter_{column}",
+            )
+
+    filtered_masters = st.session_state.masters
+    for column, selected_values in filter_values.items():
+        if selected_values:
+            filtered_masters = filtered_masters[
+                filtered_masters[column].isin(selected_values)
+            ]
+
     edited_masters = st.data_editor(
-        st.session_state.masters,
+        filtered_masters,
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
         key="masters_editor",
     )
-    st.session_state.masters = edited_masters
-    st.caption(f"{len(edited_masters):,} master rows")
+    st.session_state.masters = apply_filtered_edits(
+        st.session_state.masters, edited_masters
+    )
+    st.caption(
+        f"Showing {len(filtered_masters):,} of {len(st.session_state.masters):,} master rows"
+    )
 
 button_col, status_col = st.columns([1, 3])
 with button_col:
