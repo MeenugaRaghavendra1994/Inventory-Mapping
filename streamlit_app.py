@@ -300,7 +300,7 @@ with bom_tab:
     edited_bom = st.data_editor(
         st.session_state.bom,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         key="bom_editor",
     )
@@ -337,7 +337,7 @@ with masters_tab:
     edited_masters = st.data_editor(
         filtered_masters,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         key="masters_editor",
     )
@@ -401,7 +401,7 @@ if "output" in st.session_state:
         st.dataframe(
             st.session_state.result["Final Inventory"],
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
 with dashboard_tab:
@@ -441,7 +441,7 @@ with dashboard_tab:
         metric_columns = st.columns(2)
         metric_columns[0].metric("Total SSPL Value", format_rupees(total_sspl))
         metric_columns[1].metric("Total K12 Value", format_rupees(total_k12))
-        st.dataframe(dashboard_summary, hide_index=True, use_container_width=True)
+        st.dataframe(dashboard_summary, hide_index=True, width="stretch")
 
 with bom_failed_tab:
     st.subheader("BOM Failed Cases")
@@ -453,7 +453,7 @@ with bom_failed_tab:
         if bom_failed.empty:
             st.success("No BOM failed cases found.")
         else:
-            st.dataframe(bom_failed, hide_index=True, use_container_width=True)
+            st.dataframe(bom_failed, hide_index=True, width="stretch")
             st.download_button(
                 "Download BOM Failed Cases.csv",
                 data=bom_failed.to_csv(index=False).encode("utf-8"),
