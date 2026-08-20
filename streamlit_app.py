@@ -227,15 +227,19 @@ def save_sources(bom, masters):
 def get_supabase_client():
     try:
         config = st.secrets["supabase"]
-        url = config["url"]
-        key = config["key"]
+        url = config.get("url") or config.get("SUPABASE_URL")
+        key = (
+            config.get("service_role_key")
+            or config.get("key")
+            or config.get("SUPABASE_SERVICE_ROLE_KEY")
+        )
     except (KeyError, FileNotFoundError):
         url = os.getenv("SUPABASE_URL")
-        key = os.getenv("SUPABASE_KEY")
+        key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 
     if not url or not key:
         return None
-    return create_client(url, key)
+    return create_client(url.strip(), key.strip())
 
 
 def dataframe_records(frame):
@@ -257,7 +261,8 @@ def save_sources_to_supabase(bom, masters):
     if client is None:
         raise ValueError(
             "Supabase is not configured. Add SUPABASE_URL and SUPABASE_KEY "
-            "to Streamlit secrets or environment variables."
+            "to Streamlit secrets or environment variables. Use the current "
+            "service_role key for this Supabase project."
         )
     save_dataframe_to_supabase(client, "bom_records", bom)
     save_dataframe_to_supabase(client, "master_records", masters)
