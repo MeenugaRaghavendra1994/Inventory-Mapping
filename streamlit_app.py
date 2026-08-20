@@ -33,6 +33,13 @@ MASTERS_REQUIRED = {
 
 
 def load_sources():
+    client = get_supabase_client()
+    if client is not None:
+        return (
+            load_dataframe_from_supabase(client, "bom_records"),
+            load_dataframe_from_supabase(client, "master_records"),
+        )
+
     bom = pd.read_excel(BOM_FILE, sheet_name="Sheet1")
     masters_book = pd.ExcelFile(MASTERS_FILE)
     sheet = "Masters" if "Masters" in masters_book.sheet_names else masters_book.sheet_names[0]
@@ -266,6 +273,21 @@ def save_sources_to_supabase(bom, masters):
         )
     save_dataframe_to_supabase(client, "bom_records", bom)
     save_dataframe_to_supabase(client, "master_records", masters)
+
+
+def load_dataframe_from_supabase(client, table_name):
+    response = (
+        client.table(table_name)
+        .select("row_number, data")
+        .order("row_number")
+        .execute()
+    )
+    rows = response.data or []
+    if not rows:
+        raise ValueError(
+            f"Supabase table '{table_name}' is empty. Save the source data first."
+        )
+    return pd.DataFrame([row["data"] for row in rows])
 
 
 st.set_page_config(page_title="Inventory Mapping", page_icon=":bar_chart", layout="wide")
