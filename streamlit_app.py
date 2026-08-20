@@ -39,6 +39,10 @@ def load_sources():
             load_dataframe_from_supabase(client, "master_records"),
         )
 
+    return load_sources_from_excel()
+
+
+def load_sources_from_excel():
     bom = pd.read_excel(BOM_FILE, sheet_name="Sheet1")
     masters_book = pd.ExcelFile(MASTERS_FILE)
     sheet = "Masters" if "Masters" in masters_book.sheet_names else masters_book.sheet_names[0]
@@ -443,6 +447,17 @@ with supabase_col:
             st.success("BOM and Masters saved to Supabase.")
         except Exception as error:
             st.error(f"Could not save to Supabase: {error}")
+
+    if st.button("Restore Excel sources to Supabase", type="secondary"):
+        try:
+            excel_bom, excel_masters = load_sources_from_excel()
+            save_sources_to_supabase(excel_bom, excel_masters)
+            st.session_state.bom = excel_bom
+            st.session_state.masters = excel_masters
+            st.success("BOM and Masters restored to Supabase from the bundled Excel files.")
+            st.rerun()
+        except Exception as error:
+            st.error(f"Could not restore Excel sources to Supabase: {error}")
 
 with status_col:
     st.write("Changes are kept in the current session until you save them or generate an output file.")
