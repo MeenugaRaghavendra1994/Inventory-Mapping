@@ -315,14 +315,12 @@ def load_historical_inventory_from_supabase():
     if client is None:
         return pd.DataFrame()
 
-    response = (
-        client.table("final_inventory_records")
-        .select("report_date, row_number, data")
-        .order("report_date")
-        .order("row_number")
-        .execute()
+    rows = load_supabase_rows(
+        client,
+        "final_inventory_records",
+        "report_date, row_number, data",
+        order_columns=["report_date", "row_number"],
     )
-    rows = response.data or []
     if not rows:
         return pd.DataFrame()
 
@@ -335,18 +333,32 @@ def load_historical_inventory_from_supabase():
 
 
 def load_dataframe_from_supabase(client, table_name):
-    response = (
-        client.table(table_name)
-        .select("row_number, data")
-        .order("row_number")
-        .execute()
+    rows = load_supabase_rows(
+        client,
+        table_name,
+        "row_number, data",
+        order_columns=["row_number"],
     )
-    rows = response.data or []
     if not rows:
         raise ValueError(
             f"Supabase table '{table_name}' is empty. Save the source data first."
         )
     return pd.DataFrame([row["data"] for row in rows])
+
+
+def load_supabase_rows(client, table_name, columns, order_columns):
+    rows = []
+    page_size = 1000
+    start = 0
+    while True:
+        query = client.table(table_name).select(columns)
+        for column in order_columns:
+            query = query.order(column)
+        page = query.range(start, start + page_size - 1).execute().data or []
+        rows.extend(page)
+        if len(page) < page_size:
+            return rows
+        start += page_size
 
 st.set_page_config(page_title="Inventory Mapping", page_icon=":bar_chart", layout="wide")
 st.title("Inventory Mapping")
