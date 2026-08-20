@@ -1,8 +1,11 @@
 from io import BytesIO
+import json
+import os
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from supabase import create_client
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -221,6 +224,45 @@ def save_sources(bom, masters):
     masters.to_excel(MASTERS_FILE, sheet_name="Masters", index=False)
 
 
+def get_supabase_client():
+    try:
+        config = st.secrets["supabase"]
+        url = config["url"]
+        key = config["key"]
+    except (KeyError, FileNotFoundError):
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_KEY")
+
+    if not url or not key:
+        return None
+    return create_client(url, key)
+
+
+def dataframe_records(frame):
+    return json.loads(frame.to_json(orient="records", date_format="iso"))
+
+
+def save_dataframe_to_supabase(client, table_name, frame):
+    client.table(table_name).delete().neq("row_number", -1).execute()
+    records = [
+        {"row_number": row_number, "data": record}
+        for row_number, record in enumerate(dataframe_records(frame))
+    ]
+    for start in range(0, len(records), 500):
+        client.table(table_name).insert(records[start:start + 500]).execute()
+
+
+def save_sources_to_supabase(bom, masters):
+    client = get_supabase_client()
+    if client is None:
+        raise ValueError(
+            "Supabase is not configured. Add SUPABASE_URL and SUPABASE_KEY "
+            "to Streamlit secrets or environment variables."
+        )
+    save_dataframe_to_supabase(client, "bom_records", bom)
+    save_dataframe_to_supabase(client, "master_records", masters)
+
+
 st.set_page_config(page_title="Inventory Mapping", page_icon=":bar_chart", layout="wide")
 st.title("Inventory Mapping")
 st.caption("Edit source mappings, save them to Excel, and generate the final inventory.")
@@ -301,7 +343,7 @@ with masters_tab:
         f"Showing {len(filtered_masters):,} of {len(st.session_state.masters):,} master rows"
     )
 
-button_col, status_col = st.columns([1, 3])
+button_col, supabase_col, status_col = st.columns([1, 1, 2])
 with button_col:
     if st.button("Save source Excel files", type="secondary"):
         try:
@@ -309,6 +351,17 @@ with button_col:
             st.success("BOM and Masters saved.")
         except Exception as error:
             st.error(f"Could not save source files: {error}")
+
+with supabase_col:
+    if st.button("Save to Supabase", type="secondary"):
+        try:
+            save_sources_to_supabase(
+                st.session_state.bom,
+                st.session_state.masters,
+            )
+            st.success("BOM and Masters saved to Supabase.")
+        except Exception as error:
+            st.error(f"Could not save to Supabase: {error}")
 
 with status_col:
     st.write("Changes are kept in the current session until you save them or generate an output file.")
