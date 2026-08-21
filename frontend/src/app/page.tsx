@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Database, FileSpreadsheet, Pencil, Plus, Save, Trash2, Upload, Zap } from "lucide-react";
 
-const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001";
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 type View = "run" | "sources" | "dashboard" | "graphs";
 type SourceKind = "bom" | "masters";
 type Row = Record<string, unknown>;
@@ -30,6 +30,7 @@ export default function Home() {
   const [message, setMessage] = useState("Ready.");
 
   async function request(path: string, options?: RequestInit) {
+    if (!backendUrl) throw new Error("Backend URL is not configured. Set NEXT_PUBLIC_BACKEND_URL in the Frontend Vercel project and redeploy.");
     const response = await fetch(`${backendUrl}${path}`, options);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error ?? "Request failed.");
