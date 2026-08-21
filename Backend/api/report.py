@@ -77,11 +77,6 @@ class handler(BaseHTTPRequestHandler):
                 raise ValueError("Import BOM, Masters, and Inventory before generating a report.")
             final, failed = calculate(bom, masters, inventory)
             records = json.loads(final.to_json(orient="records", date_format="iso"))
-            client = supabase_admin()
-            client.table("final_inventory_records").delete().eq("report_date", report_date).execute()
-            for start in range(0, len(records), 500):
-                payload = [{"report_date": report_date, "row_number": start + offset, "data": row} for offset, row in enumerate(records[start:start + 500])]
-                client.table("final_inventory_records").insert(payload).execute()
-            json_response(self, {"reportDate": report_date, "rows": len(records), "failed": len(failed), "ssplValue": float(final["SSPL Value"].sum()), "k12Value": float(final["K12 Value"].sum())})
+            json_response(self, {"reportDate": report_date, "rows": len(records), "preview": records, "failedRows": json.loads(failed.to_json(orient="records")), "failed": len(failed), "ssplValue": float(final["SSPL Value"].sum()), "k12Value": float(final["K12 Value"].sum())})
         except Exception as error:
             json_response(self, {"error": str(error)}, 500)
