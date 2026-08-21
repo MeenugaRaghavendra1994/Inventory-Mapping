@@ -1,4 +1,14 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Inventory Mapping Frontend
+
+This is the Vercel frontend for Inventory Mapping. Excel files are used only for import; the import routes store BOM, Masters, and Inventory rows in Supabase. Report generation reads those Supabase tables and writes dated final snapshots back to Supabase.
+
+### Local setup
+
+1. Copy `.env.example` to `.env.local` and set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+2. Run `supabase_schema.sql` in the Supabase SQL editor from the repository root.
+3. Start the frontend with `npm run dev`.
+
+Deploy the `frontend` directory as the Vercel project root and add the same environment variables in the Vercel project settings. Keep the service role key server-only.
 
 ## Getting Started
 
