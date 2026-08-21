@@ -564,13 +564,17 @@ with dashboard_tab:
         ]].sum().sort_index()
 
         with sspl_tab:
-            st.bar_chart(monthly_values["SSPL Value"], y_label="SSPL Value (₹)")
+            _, sspl_chart, _ = st.columns([1, 4, 1])
+            with sspl_chart:
+                st.bar_chart(monthly_values["SSPL Value"], y_label="SSPL Value (₹)")
             st.dataframe(
                 monthly_values[["SSPL Value"]].style.format(format_rupees),
                 **stretch_width_kwargs(),
             )
         with k12_tab:
-            st.bar_chart(monthly_values["K12 Value"], y_label="K12 Value (₹)")
+            _, k12_chart, _ = st.columns([1, 4, 1])
+            with k12_chart:
+                st.bar_chart(monthly_values["K12 Value"], y_label="K12 Value (₹)")
             st.dataframe(
                 monthly_values[["K12 Value"]].style.format(format_rupees),
                 **stretch_width_kwargs(),
