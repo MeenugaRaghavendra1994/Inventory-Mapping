@@ -557,7 +557,7 @@ with dashboard_tab:
 
         chart_data = filtered_history.copy()
         chart_data["Report Month"] = (
-            chart_data["report_date"].dt.to_period("M").dt.to_timestamp()
+            chart_data["report_date"].dt.to_period("M").astype("string")
         )
         monthly_values = chart_data.groupby("Report Month")[[
             "SSPL Value", "K12 Value"
