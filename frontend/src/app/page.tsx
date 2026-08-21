@@ -19,7 +19,12 @@ export default function Home() {
   const [reportDate, setReportDate] = useState(new Date().toISOString().slice(0, 10));
   const [reportBusy, setReportBusy] = useState(false);
   const [reportResult, setReportResult] = useState<{ rows: number; failed: number; ssplValue: number; k12Value: number } | null>(null);
-  async function refreshStatus() { const response = await fetch("/api/status"); const data = await response.json(); if (response.ok) setCounts(data); }
+  async function refreshStatus() {
+    const response = await fetch("/api/status");
+    const data = await response.json();
+    if (response.ok) setCounts(data);
+    else setMessage(data.error ?? "Could not connect to Supabase.");
+  }
   useEffect(() => {
     const timer = window.setTimeout(() => { void refreshStatus(); }, 0);
     return () => window.clearTimeout(timer);

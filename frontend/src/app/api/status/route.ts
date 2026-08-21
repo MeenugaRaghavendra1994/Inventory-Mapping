@@ -8,7 +8,7 @@ const tables = ["bom_records", "master_records", "inventory_records"] as const;
 export async function GET() {
   try {
     const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
     if (!url || !key) throw new Error("Supabase environment variables are missing.");
     const supabase = createClient(url, key, { auth: { persistSession: false } });
     const counts = await Promise.all(
