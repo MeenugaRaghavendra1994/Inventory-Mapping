@@ -5,6 +5,7 @@ import { Activity, ArrowUpFromLine, Database, FileSpreadsheet, RefreshCw } from 
 
 type ImportKind = "bom" | "masters" | "inventory";
 type Counts = { bom_records: number; master_records: number; inventory_records: number };
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001";
 const imports: { kind: ImportKind; title: string; description: string; table: keyof Counts }[] = [
   { kind: "bom", title: "BOM report", description: "Upload the SAP component mapping once.", table: "bom_records" },
   { kind: "masters", title: "Masters", description: "Upload pricing and classification data once.", table: "master_records" },
@@ -20,7 +21,7 @@ export default function Home() {
   const [reportBusy, setReportBusy] = useState(false);
   const [reportResult, setReportResult] = useState<{ rows: number; failed: number; ssplValue: number; k12Value: number } | null>(null);
   async function refreshStatus() {
-    const response = await fetch("/api/status");
+    const response = await fetch(`${backendUrl}/api/status`);
     const data = await response.json();
     if (response.ok) setCounts(data);
     else setMessage(data.error ?? "Could not connect to Supabase.");
@@ -32,13 +33,13 @@ export default function Home() {
   async function upload(kind: ImportKind) {
     const file = files[kind]; if (!file) return; setBusy(kind); setMessage(`Importing ${file.name} into Supabase...`);
     const formData = new FormData(); formData.append("kind", kind); formData.append("file", file);
-    const response = await fetch("/api/import", { method: "POST", body: formData }); const data = await response.json(); setBusy(null);
+    const response = await fetch(`${backendUrl}/api/import`, { method: "POST", body: formData }); const data = await response.json(); setBusy(null);
     if (!response.ok) { setMessage(data.error ?? "Import failed."); return; }
     setMessage(`${data.rows.toLocaleString()} rows saved to Supabase.`); setFiles((current) => ({ ...current, [kind]: null })); await refreshStatus();
   }
   async function generateReport() {
     setReportBusy(true); setMessage(`Calculating the ${reportDate} report from Supabase...`);
-    const response = await fetch("/api/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportDate }) });
+    const response = await fetch(`${backendUrl}/api/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportDate }) });
     const data = await response.json(); setReportBusy(false);
     if (!response.ok) { setMessage(data.error ?? "Report generation failed."); return; }
     setReportResult(data); setMessage(`Report saved to Supabase for ${reportDate}.`);

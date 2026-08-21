@@ -8,7 +8,7 @@ This is the Vercel frontend for Inventory Mapping. Excel files are used only for
 2. Run `supabase_schema.sql` in the Supabase SQL editor from the repository root.
 3. Start the frontend with `npm run dev`.
 
-Deploy the `frontend` directory as the Vercel project root and add the same environment variables in the Vercel project settings. Keep the service role key server-only.
+Deploy the `Frontend` directory as its own Vercel project with `Frontend` as the project root. Add `NEXT_PUBLIC_BACKEND_URL` pointing to the deployed Backend project. The Supabase service role key belongs only in the Backend project, never in Frontend.
 
 ## Getting Started
 
